@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bursa Malaysia — Live Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&family=Familjen+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+:root {
+  --bg:    #09090c;
+  --bg2:   #0f1014;
+  --bg3:   #16171c;
+  --bg4:   #1d1e24;
+  --border:  rgba(255,255,255,0.055);
+  --border2: rgba(255,255,255,0.10);
+  --text:    #dedad2;
+  --sub:     #9a9890;
+  --muted:   #50504c;
+  --accent:  #c8923b;
+  --accent2: #e0b568;
+  --green:   #27c97a;
+  --green2:  rgba(39,201,122,0.12);
+  --red:     #e84d3a;
+  --red2:    rgba(232,77,58,0.12);
+  --blue:    #4a8fe0;
+  --purple:  #9b79f0;
+  --teal:    #26c7c0;
+  --mono:    'IBM Plex Mono', monospace;
+  --sans:    'Familjen Grotesk', sans-serif;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ── scanline texture ─────────── */
+body::before {
+  content:'';
+  position:fixed; inset:0; pointer-events:none; z-index:999;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,0.03) 0px, rgba(0,0,0,0.03) 1px, transparent 1px, transparent 3px);
+}
+
+.page { max-width: 1600px; margin: 0 auto; padding: 0 20px 60px; }
+
+/* ── HEADER ───────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 0 18px;
+  border-bottom: 1px solid var(--border);
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.hd-left { display: flex; align-items: center; gap: 20px; }
+.logo {
+  font-family: var(--sans);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.logo span { color: var(--accent); }
+.market-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  animation: blink 2s ease-in-out infinite;
+}
+.status-dot.closed { background: var(--muted); box-shadow: none; animation: none; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.hd-center {
+  display: flex;
+  gap: 32px;
+  align-items: center;
+}
+.index-block { text-align: center; }
+.idx-label { font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+.idx-val {
+  font-family: var(--sans);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+.idx-chg { font-size: 11px; margin-top: 1px; }
+
+.hd-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.refresh-info { font-size: 11px; color: var(--muted); text-align: right; }
+#countdown { color: var(--accent); font-weight: 500; }
+.btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 6px 14px;
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--sub);
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn:disabled { opacity: 0.4; cursor: default; pointer-events: none; }
+
+/* ── BREADTH BAR ──────────────── */
+.breadth {
+  display: flex;
+  gap: 1px;
+  margin: 16px 0;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.breadth-seg {
+  height: 4px;
+  transition: width 0.8s ease;
+}
+.breadth-seg.up   { background: var(--green); }
+.breadth-seg.flat { background: var(--muted); }
+.breadth-seg.down { background: var(--red); }
+
+.stats-row {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.stat-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.pill-dot { width: 8px; height: 8px; border-radius: 50%; }
+.pill-dot.up   { background: var(--green); }
+.pill-dot.flat { background: var(--muted); }
+.pill-dot.down { background: var(--red); }
+.pill-num { color: var(--text); font-weight: 500; }
+.pill-label { color: var(--muted); }
+
+/* ── CONTROLS ─────────────────── */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+  max-width: 300px;
+}
+.search-wrap svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  opacity: 0.35;
+}
+#search {
+  font-family: var(--mono);
+  font-size: 12px;
+  width: 100%;
+  padding: 7px 10px 7px 32px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+#search:focus { border-color: var(--accent); }
+#search::placeholder { color: var(--muted); }
+
+.filters { display: flex; gap: 4px; flex-wrap: wrap; }
+.fb {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 5px 11px;
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+.fb:hover { border-color: var(--accent2); color: var(--accent2); }
+.fb.active { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 500; }
+
+.sort-wrap { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.sort-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+select#sortSel {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 6px 8px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  color: var(--sub);
+  outline: none;
+  cursor: pointer;
+}
+
+/* ── TABLE ────────────────────── */
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+}
+thead tr {
+  border-bottom: 1px solid var(--border2);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg2);
+}
+th {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 10px 14px;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: color 0.12s;
+}
+th:hover { color: var(--accent2); }
+th.sorted { color: var(--accent); }
+th.r { text-align: right; }
+th .sort-icon { opacity: 0.4; font-style: normal; margin-left: 3px; }
+th.sorted .sort-icon { opacity: 1; }
+
+td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+tbody tr { transition: background 0.1s; }
+tbody tr:hover { background: var(--bg3); }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr.row-up:hover   { background: rgba(39,201,122,0.05); }
+tbody tr.row-down:hover { background: rgba(232,77,58,0.05); }
+
+.td-r { text-align: right; }
+
+/* stock name cell */
+.cell-name .sn {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.cell-name .sc { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+/* sector tag */
+.tag {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 2px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  display: inline-block;
+}
+.t-banking     { background:rgba(74,143,224,0.12); color:#6ba3e8; }
+.t-energy      { background:rgba(155,121,240,0.12); color:#b99bf5; }
+.t-plantation  { background:rgba(38,199,192,0.12); color:#42d4ce; }
+.t-telco       { background:rgba(200,146,59,0.12); color:#e0b568; }
+.t-healthcare  { background:rgba(39,201,122,0.12); color:#27c97a; }
+.t-construction{ background:rgba(224,181,104,0.12); color:#d4a64e; }
+.t-reit        { background:rgba(232,77,58,0.12); color:#f07a6a; }
+.t-consumer    { background:rgba(200,146,59,0.10); color:#d49040; }
+.t-conglomerate{ background:rgba(154,152,144,0.12); color:#9a9890; }
+.t-technology  { background:rgba(74,143,224,0.1); color:#5ba0f0; }
+.t-gloves      { background:rgba(38,199,192,0.08); color:#3bbfb8; }
+.t-transport   { background:rgba(232,77,58,0.08); color:#e06555; }
+.t-automotive  { background:rgba(155,121,240,0.08); color:#a888f5; }
+.t-financial   { background:rgba(224,181,104,0.1); color:#d4b060; }
+
+/* price cell */
+.price-val { font-size: 13px; font-weight: 500; color: var(--text); }
+.chg-cell  { font-size: 12px; font-weight: 500; }
+.chg-up    { color: var(--green); }
+.chg-down  { color: var(--red); }
+.chg-flat  { color: var(--muted); }
+
+/* volume / mktcap */
+.num-cell { font-size: 12px; color: var(--sub); }
+
+/* mini change bar */
+.bar-wrap { width: 50px; height: 4px; background: var(--bg4); border-radius: 2px; overflow: hidden; display: inline-block; vertical-align: middle; }
+.bar-fill  { height: 100%; border-radius: 2px; }
+.bar-up    { background: var(--green); }
+.bar-down  { background: var(--red); }
+
+/* 52wk range bar */
+.range-wrap { display: flex; align-items: center; gap: 6px; }
+.range-bar { width: 60px; height: 4px; background: var(--bg4); border-radius: 2px; position: relative; }
+.range-dot  {
+  position: absolute;
+  top: 50%; transform: translateY(-50%);
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-left: -3px;
+}
+.range-label { font-size: 10px; color: var(--muted); }
+
+/* ── LOADING / ERROR ──────────── */
+.overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid var(--border2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── FOOTER ───────────────────── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 16px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+footer p { font-size: 11px; color: var(--muted); }
+footer a { color: var(--accent); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+@keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+.page > * { animation: fadeIn 0.4s ease forwards; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ── HEADER ──────────────────────────────── -->
+<header>
+  <div class="hd-left">
+    <div class="logo">Bursa <span>MY</span></div>
+    <div class="market-status">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text">Checking...</span>
+    </div>
+  </div>
+
+  <div class="hd-center">
+    <div class="index-block">
+      <div class="idx-label">FBM KLCI</div>
+      <div class="idx-val" id="klci-val">—</div>
+      <div class="idx-chg" id="klci-chg">—</div>
+    </div>
+    <div class="index-block">
+      <div class="idx-label">FBM 70</div>
+      <div class="idx-val" id="klci2-val">—</div>
+      <div class="idx-chg" id="klci2-chg">—</div>
+    </div>
+    <div class="index-block">
+      <div class="idx-label">FBM Small Cap</div>
+      <div class="idx-val" id="klci3-val">—</div>
+      <div class="idx-chg" id="klci3-chg">—</div>
+    </div>
+  </div>
+
+  <div class="hd-right">
+    <div class="refresh-info">
+      Auto-refresh in <span id="countdown">60</span>s<br>
+      <span id="last-updated" style="font-size:10px;">Not loaded yet</span>
+    </div>
+    <button class="btn" id="refresh-btn" onclick="triggerRefresh()">↻ Refresh</button>
+    <button class="btn" onclick="const p=document.getElementById('debug-panel');p.style.display=p.style.display==='none'?'block':'none'">Debug</button>
+  </div>
+</header>
+
+<!-- ── BREADTH ──────────────────────────────── -->
+<div class="breadth" id="breadth-bar">
+  <div class="breadth-seg up"   style="width:33%"></div>
+  <div class="breadth-seg flat" style="width:33%"></div>
+  <div class="breadth-seg down" style="width:34%"></div>
+</div>
+<div class="stats-row">
+  <div class="stat-pill"><span class="pill-dot up"></span><span class="pill-num" id="cnt-up">—</span><span class="pill-label">&nbsp;advancing</span></div>
+  <div class="stat-pill"><span class="pill-dot flat"></span><span class="pill-num" id="cnt-flat">—</span><span class="pill-label">&nbsp;unchanged</span></div>
+  <div class="stat-pill"><span class="pill-dot down"></span><span class="pill-num" id="cnt-down">—</span><span class="pill-label">&nbsp;declining</span></div>
+  <div class="stat-pill" style="margin-left:16px"><span class="pill-label">Avg yield&nbsp;</span><span class="pill-num" id="avg-yield" style="color:var(--green)">—</span></div>
+  <div class="stat-pill"><span class="pill-label">Loaded&nbsp;</span><span class="pill-num" id="cnt-loaded">—</span><span class="pill-label">&nbsp;stocks</span></div>
+</div>
+
+<!-- ── CONTROLS ─────────────────────────────── -->
+<div class="controls">
+  <div class="search-wrap">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input type="text" id="search" placeholder="Search stock or code..." oninput="applyFilters()">
+  </div>
+  <div class="filters" id="sector-filters">
+    <button class="fb active" onclick="setSector('all',this)">All</button>
+    <button class="fb" onclick="setSector('Banking',this)">Banking</button>
+    <button class="fb" onclick="setSector('Energy',this)">Energy</button>
+    <button class="fb" onclick="setSector('Plantation',this)">Plantation</button>
+    <button class="fb" onclick="setSector('Telco',this)">Telco</button>
+    <button class="fb" onclick="setSector('Healthcare',this)">Healthcare</button>
+    <button class="fb" onclick="setSector('Construction',this)">Construction</button>
+    <button class="fb" onclick="setSector('REIT',this)">REIT</button>
+    <button class="fb" onclick="setSector('Consumer',this)">Consumer</button>
+    <button class="fb" onclick="setSector('Conglomerate',this)">Conglomerate</button>
+    <button class="fb" onclick="setSector('Technology',this)">Technology</button>
+    <button class="fb" onclick="setSector('Gloves',this)">Gloves</button>
+    <button class="fb" onclick="setSector('Transport',this)">Transport</button>
+    <button class="fb" onclick="setSector('Automotive',this)">Auto</button>
+  </div>
+</div>
+
+<!-- ── TABLE ────────────────────────────────── -->
+<div class="table-wrap">
+  <table id="main-table">
+    <thead>
+      <tr>
+        <th style="width:26px;text-align:center">#</th>
+        <th onclick="setSort('name')" id="th-name">Stock <i class="sort-icon"></i></th>
+        <th onclick="setSort('sector')" id="th-sector">Sector <i class="sort-icon"></i></th>
+        <th class="r" onclick="setSort('price')" id="th-price">Price (RM) <i class="sort-icon"></i></th>
+        <th class="r" onclick="setSort('change')" id="th-change">Change <i class="sort-icon"></i></th>
+        <th class="r" onclick="setSort('changePct')" id="th-changePct">Chg % <i class="sort-icon"></i></th>
+        <th class="r" onclick="setSort('volume')" id="th-volume">Volume <i class="sort-icon"></i></th>
+        <th class="r" onclick="setSort('mktcap')" id="th-mktcap">Mkt Cap <i class="sort-icon"></i></th>
+        <th class="r" onclick="setSort('pe')" id="th-pe">P/E <i class="sort-icon"></i></th>
+        <th class="r" onclick="setSort('divYield')" id="th-divYield">Div Yield <i class="sort-icon"></i></th>
+        <th class="r">52W Range</th>
+      </tr>
+    </thead>
+    <tbody id="stock-tbody">
+      <tr><td colspan="11"><div class="overlay"><div class="spinner"></div> Fetching live data…</div></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div id="debug-panel" style="display:none;margin:16px 0;background:var(--bg2);border:1px solid var(--border2);border-left:3px solid var(--red);border-radius:4px;padding:14px 16px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <span style="font-size:12px;color:var(--red);font-weight:500;letter-spacing:0.06em;text-transform:uppercase;">⚠ Data fetch failed — proxy log</span>
+    <button class="btn" onclick="document.getElementById('debug-panel').style.display='none'">✕ Close</button>
+  </div>
+  <div id="debug-log" style="font-size:11px;line-height:1.8;max-height:180px;overflow-y:auto;color:var(--sub);font-family:var(--mono);"></div>
+  <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.8;border-top:1px solid var(--border);padding-top:10px;">
+    <strong style="color:var(--sub);">Why is data missing?</strong><br>
+    Yahoo Finance blocks direct browser requests (CORS). This dashboard uses free public proxies to work around that.<br>
+    These proxies are sometimes rate-limited or down. <strong style="color:var(--accent);">Try clicking ↻ Refresh a few times</strong>, or open the file later.<br>
+    For a permanent fix, host a simple backend proxy on Vercel/Railway (free tier) — ask Claude to generate one for you.
+  </div>
+</div>
+
+<footer>
+  <p>Data via Yahoo Finance · For informational use only · Not financial advice</p>
+  <p><a href="https://www.bursamalaysia.com" target="_blank">Bursa Malaysia</a> &nbsp;·&nbsp; <a href="https://www.bnm.gov.my" target="_blank">Bank Negara Malaysia</a></p>
+</footer>
+
+</div><!-- .page -->
+
+<script>
+/* ── STOCK UNIVERSE ────────────────────────── */
+const STOCKS = [
+  // Banking
+  {s:'1155.KL', n:'Maybank',               sec:'Banking'},
+  {s:'1295.KL', n:'Public Bank',           sec:'Banking'},
+  {s:'1023.KL', n:'CIMB Group',            sec:'Banking'},
+  {s:'5819.KL', n:'Hong Leong Bank',       sec:'Banking'},
+  {s:'1066.KL', n:'RHB Bank',              sec:'Banking'},
+  {s:'1015.KL', n:'AmBank Group',          sec:'Banking'},
+  {s:'5185.KL', n:'Alliance Bank',         sec:'Banking'},
+  {s:'5258.KL', n:'Affin Bank',            sec:'Banking'},
+  {s:'5168.KL', n:'BIMB Holdings',         sec:'Banking'},
+  {s:'1597.KL', n:'Hong Leong Financial',  sec:'Banking'},
+  // Energy & Utilities
+  {s:'5347.KL', n:'Tenaga Nasional',       sec:'Energy'},
+  {s:'6033.KL', n:'Petronas Gas',          sec:'Energy'},
+  {s:'5183.KL', n:'Petronas Dagangan',     sec:'Energy'},
+  {s:'5681.KL', n:'Dialog Group',          sec:'Energy'},
+  {s:'0216.KL', n:'Yinson Holdings',       sec:'Energy'},
+  {s:'5209.KL', n:'Malaysian Resources Corp', sec:'Energy'},
+  {s:'0225.KL', n:'Serba Dinamik',         sec:'Energy'},
+  // Plantation
+  {s:'2089.KL', n:'United Plantations',    sec:'Plantation'},
+  {s:'2445.KL', n:'IOI Corp',              sec:'Plantation'},
+  {s:'3034.KL', n:'KL Kepong',             sec:'Plantation'},
+  {s:'5054.KL', n:'Sime Darby Plantation', sec:'Plantation'},
+  {s:'1899.KL', n:'Genting Plantations',   sec:'Plantation'},
+  {s:'5027.KL', n:'Kim Loong Resources',   sec:'Plantation'},
+  {s:'2291.KL', n:'TSH Resources',         sec:'Plantation'},
+  {s:'5069.KL', n:'Hap Seng Plantations',  sec:'Plantation'},
+  // Telco
+  {s:'6012.KL', n:'CelcomDigi',            sec:'Telco'},
+  {s:'6888.KL', n:'Axiata Group',          sec:'Telco'},
+  {s:'6947.KL', n:'Maxis',                 sec:'Telco'},
+  {s:'5031.KL', n:'Telekom Malaysia',      sec:'Telco'},
+  // Healthcare
+  {s:'5225.KL', n:'IHH Healthcare',        sec:'Healthcare'},
+  {s:'5878.KL', n:'KPJ Healthcare',        sec:'Healthcare'},
+  {s:'3718.KL', n:'Duopharma Biotech',     sec:'Healthcare'},
+  {s:'7085.KL', n:'Pharmaniaga',           sec:'Healthcare'},
+  {s:'5024.KL', n:'Caring Pharmacy',       sec:'Healthcare'},
+  // Construction & Infrastructure
+  {s:'5211.KL', n:'Gamuda',               sec:'Construction'},
+  {s:'5289.KL', n:'IJM Corp',             sec:'Construction'},
+  {s:'5263.KL', n:'Sunway Construction',  sec:'Construction'},
+  {s:'3816.KL', n:'MMC Corp',             sec:'Construction'},
+  {s:'9814.KL', n:'WCT Holdings',         sec:'Construction'},
+  {s:'5275.KL', n:'Sunway Berhad',        sec:'Construction'},
+  {s:'3476.KL', n:'Mudajaya Group',       sec:'Construction'},
+  {s:'9717.KL', n:'Muhibbah Engineering', sec:'Construction'},
+  // REIT
+  {s:'5111.KL', n:'KLCC REIT',            sec:'REIT'},
+  {s:'5235.KL', n:'Pavilion REIT',        sec:'REIT'},
+  {s:'5227.KL', n:'IGB REIT',             sec:'REIT'},
+  {s:'5123.KL', n:'Sentral REIT',         sec:'REIT'},
+  {s:'5180.KL', n:'CapitaLand MY REIT',   sec:'REIT'},
+  {s:'5106.KL', n:'Axis REIT',            sec:'REIT'},
+  {s:'5125.KL', n:'Amanahraya REIT',      sec:'REIT'},
+  {s:'5212.KL', n:'Sunway REIT',          sec:'REIT'},
+  // Consumer & F&B
+  {s:'4707.KL', n:'Nestle Malaysia',      sec:'Consumer'},
+  {s:'3026.KL', n:'Heineken Malaysia',    sec:'Consumer'},
+  {s:'5196.KL', n:'Dutch Lady',           sec:'Consumer'},
+  {s:'6139.KL', n:'F&N Malaysia',         sec:'Consumer'},
+  {s:'7084.KL', n:'QL Resources',         sec:'Consumer'},
+  {s:'5099.KL', n:'Capital A (AirAsia)',  sec:'Consumer'},
+  {s:'5147.KL', n:'Malaysia Airports',    sec:'Consumer'},
+  {s:'3689.KL', n:'Berjaya Corp',         sec:'Consumer'},
+  // Conglomerate
+  {s:'3182.KL', n:'Genting Berhad',       sec:'Conglomerate'},
+  {s:'4715.KL', n:'Genting Malaysia',     sec:'Conglomerate'},
+  {s:'4197.KL', n:'Sime Darby',           sec:'Conglomerate'},
+  {s:'4677.KL', n:'YTL Corp',             sec:'Conglomerate'},
+  {s:'6742.KL', n:'YTL Power',            sec:'Conglomerate'},
+  {s:'1961.KL', n:'IOI Properties',       sec:'Conglomerate'},
+  // Technology & Semiconductors
+  {s:'5150.KL', n:'Inari Amertron',       sec:'Technology'},
+  {s:'3786.KL', n:'Malaysian Pacific Ind',sec:'Technology'},
+  {s:'5005.KL', n:'Unisem',               sec:'Technology'},
+  {s:'7148.KL', n:'Vitrox Corp',          sec:'Technology'},
+  {s:'0082.KL', n:'Aemulus Holdings',     sec:'Technology'},
+  {s:'7089.KL', n:'Frontken Corp',        sec:'Technology'},
+  {s:'5010.KL', n:'Sapura Energy',        sec:'Technology'},
+  // Gloves
+  {s:'5245.KL', n:'Hartalega',            sec:'Gloves'},
+  {s:'7153.KL', n:'Top Glove',            sec:'Gloves'},
+  {s:'7113.KL', n:'Kossan Rubber',        sec:'Gloves'},
+  {s:'7239.KL', n:'Supermax',             sec:'Gloves'},
+  // Transport & Logistics
+  {s:'5136.KL', n:'Westports',            sec:'Transport'},
+  {s:'4634.KL', n:'Pos Malaysia',         sec:'Transport'},
+  {s:'5248.KL', n:'Bumi Armada',          sec:'Transport'},
+  // Automotive
+  {s:'5014.KL', n:'Bermaz Auto',          sec:'Automotive'},
+  {s:'4405.KL', n:'UMW Holdings',         sec:'Automotive'},
+  {s:'5983.KL', n:'Tan Chong Motor',      sec:'Automotive'},
+  // Financial Services
+  {s:'1818.KL', n:'Bursa Malaysia',       sec:'Financial'},
+];
+
+const INDICES = [
+  {id:'klci-val',  chgId:'klci-chg',  sym:'^KLSE'},
+  {id:'klci2-val', chgId:'klci2-chg', sym:'^FBM70'},
+  {id:'klci3-val', chgId:'klci3-chg', sym:'^FBMSC'},
+];
+
+/* ── STATE ─────────────────────────────────── */
+let liveData  = {};
+let sortCol   = 'changePct';
+let sortDir   = -1; // -1 = desc
+let filterSec = 'all';
+let searchQ   = '';
+let countdownTimer, refreshTimer, countdown = 60;
+
+/* ── UTILS ─────────────────────────────────── */
+const chunk = (arr, n) => Array.from({length: Math.ceil(arr.length/n)}, (_, i) => arr.slice(i*n, i*n+n));
+
+function fmtNum(v, dec=2) {
+  if(v == null || isNaN(v)) return '—';
+  return v.toFixed(dec);
+}
+function fmtVol(v) {
+  if(v == null || isNaN(v)) return '—';
+  if(v >= 1e9) return (v/1e9).toFixed(2)+'B';
+  if(v >= 1e6) return (v/1e6).toFixed(1)+'M';
+  if(v >= 1e3) return (v/1e3).toFixed(0)+'K';
+  return v.toString();
+}
+function fmtCap(v) {
+  if(v == null || isNaN(v)) return '—';
+  if(v >= 1e12) return 'RM '+(v/1e12).toFixed(2)+'T';
+  if(v >= 1e9)  return 'RM '+(v/1e9).toFixed(1)+'B';
+  if(v >= 1e6)  return 'RM '+(v/1e6).toFixed(0)+'M';
+  return 'RM '+v.toFixed(0);
+}
+function sign(v) {
+  if(v == null || isNaN(v)) return '';
+  return v > 0 ? '+' : '';
+}
+function chgClass(v) {
+  if(v == null || isNaN(v) || v === 0) return 'chg-flat';
+  return v > 0 ? 'chg-up' : 'chg-down';
+}
+
+/* ── MARKET HOURS (MYT = UTC+8) ──────────── */
+function isMarketOpen() {
+  const now = new Date();
+  const myt = new Date(now.toLocaleString('en-US', {timeZone:'Asia/Kuala_Lumpur'}));
+  const day = myt.getDay();
+  const h = myt.getHours();
+  const m = myt.getMinutes();
+  const mins = h*60 + m;
+  if(day === 0 || day === 6) return false;
+  return mins >= 9*60 && mins <= 17*60;
+}
+function updateMarketStatus() {
+  const open = isMarketOpen();
+  document.getElementById('status-dot').className = 'status-dot' + (open ? '' : ' closed');
+  document.getElementById('status-text').textContent = open ? 'Market open' : 'Market closed';
+}
+
+/* ── FETCH ─────────────────────────────────── */
+
+// Four proxy strategies — tried in order until one works
+const PROXIES = [
+  {
+    name: 'corsproxy.io',
+    build: url => 'https://corsproxy.io/?' + encodeURIComponent(url),
+    parse: async res => { const j = await res.json(); return j?.quoteResponse?.result || null; }
+  },
+  {
+    name: 'allorigins',
+    build: url => 'https://api.allorigins.win/get?url=' + encodeURIComponent(url),
+    parse: async res => { const w = await res.json(); const j = JSON.parse(w.contents); return j?.quoteResponse?.result || null; }
+  },
+  {
+    name: 'codetabs',
+    build: url => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
+    parse: async res => { const j = await res.json(); return j?.quoteResponse?.result || null; }
+  },
+  {
+    name: 'thingproxy',
+    build: url => 'https://thingproxy.freeboard.io/fetch/' + url,
+    parse: async res => { const j = await res.json(); return j?.quoteResponse?.result || null; }
+  }
+];
+
+let workingProxy = null;
+
+function dbg(msg, ok) {
+  const el = document.getElementById('debug-log');
+  if (!el) return;
+  const line = document.createElement('div');
+  line.style.cssText = 'padding:2px 0;color:' + (ok ? 'var(--green)' : 'var(--red)');
+  line.textContent = (ok ? '✓ ' : '✗ ') + msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+async function tryProxy(proxy, url) {
+  const proxyUrl = proxy.build(url);
+  const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(14000) });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const result = await proxy.parse(res);
+  if (!result) throw new Error('Empty result');
+  return result;
+}
+
+async function fetchYahoo(symbols) {
+  const url = `https://query1.finance.yahoo.com/v8/finance/quote?symbols=${symbols.join(',')}&formatted=false&lang=en-US&region=MY&corsDomain=finance.yahoo.com`;
+
+  if (workingProxy) {
+    try {
+      const r = await tryProxy(workingProxy, url);
+      dbg(workingProxy.name + ' → ' + symbols.length + ' symbols', true);
+      return r;
+    } catch(e) {
+      dbg(workingProxy.name + ' failed: ' + e.message, false);
+      workingProxy = null;
+    }
+  }
+
+  for (const proxy of PROXIES) {
+    try {
+      const r = await tryProxy(proxy, url);
+      workingProxy = proxy;
+      dbg(proxy.name + ' → ' + symbols.length + ' symbols OK', true);
+      return r;
+    } catch(e) {
+      dbg(proxy.name + ': ' + e.message, false);
+    }
+  }
+
+  dbg('All proxies failed for: ' + symbols.slice(0,3).join(',') + '...', false);
+  return [];
+}
+
+async function loadData() {
+  setRefreshBtn(true);
+  workingProxy = null;
+
+  const dbgEl = document.getElementById('debug-log');
+  if (dbgEl) dbgEl.innerHTML = '';
+
+  document.getElementById('last-updated').textContent = 'Fetching…';
+
+  const batches = chunk(STOCKS.map(s => s.s), 15);
+
+  for (const batch of batches) {
+    try {
+      const results = await fetchYahoo(batch);
+      results.forEach(q => { liveData[q.symbol] = q; });
+      renderTable();
+      updateBreadth();
+    } catch(e) {
+      dbg('Batch error: ' + e.message, false);
+    }
+  }
+
+  // Fetch indices
+  try {
+    const idxResults = await fetchYahoo(INDICES.map(i => i.sym));
+    idxResults.forEach(q => {
+      const cfg = INDICES.find(i => i.sym === q.symbol);
+      if (cfg) renderIndex(cfg, q);
+    });
+  } catch(e) {}
+
+  renderTable();
+  updateBreadth();
+
+  const now = new Date();
+  const loadedCount = Object.keys(liveData).length;
+
+  document.getElementById('last-updated').textContent =
+    loadedCount > 0
+      ? `Updated ${now.toLocaleTimeString('en-MY')} · ${loadedCount} stocks loaded`
+      : `⚠ No data loaded — see debug panel below`;
+
+  const panel = document.getElementById('debug-panel');
+  if (panel) panel.style.display = loadedCount === 0 ? 'block' : 'none';
+
+  setRefreshBtn(false);
+  resetCountdown();
+}
+
+function renderIndex(cfg, q) {
+  const v = q.regularMarketPrice;
+  const c = q.regularMarketChange;
+  const cp = q.regularMarketChangePercent;
+  document.getElementById(cfg.id).textContent = v ? v.toLocaleString('en-MY', {maximumFractionDigits:2, minimumFractionDigits:2}) : '—';
+  const chgEl = document.getElementById(cfg.chgId);
+  if(v) {
+    const cls = cp > 0 ? 'chg-up' : cp < 0 ? 'chg-down' : 'chg-flat';
+    chgEl.className = 'idx-chg ' + cls;
+    chgEl.textContent = `${sign(c)}${fmtNum(c)} (${sign(cp)}${fmtNum(cp)}%)`;
+  }
+}
+
+/* ── SORT & FILTER ─────────────────────────── */
+function setSort(col) {
+  if(sortCol === col) sortDir *= -1;
+  else { sortCol = col; sortDir = -1; }
+  document.querySelectorAll('th[id^=th-]').forEach(th => th.classList.remove('sorted'));
+  const th = document.getElementById('th-'+col);
+  if(th) {
+    th.classList.add('sorted');
+    th.querySelector('.sort-icon').textContent = sortDir === -1 ? '▾' : '▴';
+  }
+  renderTable();
+}
+
+function setSector(sec, btn) {
+  filterSec = sec;
+  document.querySelectorAll('.fb').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+}
+
+function applyFilters() {
+  searchQ = document.getElementById('search').value.toLowerCase().trim();
+  renderTable();
+}
+
+function getRowVal(stock, d) {
+  if(!d) return null;
+  switch(sortCol) {
+    case 'name':      return (stock.n || '').toLowerCase();
+    case 'sector':    return stock.sec.toLowerCase();
+    case 'price':     return d.regularMarketPrice ?? null;
+    case 'change':    return d.regularMarketChange ?? null;
+    case 'changePct': return d.regularMarketChangePercent ?? null;
+    case 'volume':    return d.regularMarketVolume ?? null;
+    case 'mktcap':    return d.marketCap ?? null;
+    case 'pe':        return d.trailingPE ?? null;
+    case 'divYield':  return d.trailingAnnualDividendYield ?? null;
+    default: return null;
+  }
+}
+
+/* ── RENDER TABLE ──────────────────────────── */
+function renderTable() {
+  let rows = STOCKS.filter(s => {
+    const d = liveData[s.s];
+    if(filterSec !== 'all' && s.sec !== filterSec) return false;
+    if(searchQ) {
+      const name = (d ? (d.shortName || s.n) : s.n).toLowerCase();
+      const code = s.s.replace('.KL','').toLowerCase();
+      if(!name.includes(searchQ) && !code.includes(searchQ) && !s.sec.toLowerCase().includes(searchQ)) return false;
+    }
+    return true;
+  });
+
+  rows.sort((a, b) => {
+    const da = liveData[a.s], db = liveData[b.s];
+    // always sort by static name/sector even without live data
+    if(sortCol === 'name') return sortDir * a.n.localeCompare(b.n);
+    if(sortCol === 'sector') return sortDir * a.sec.localeCompare(b.sec);
+    let va = getRowVal(a, da), vb = getRowVal(b, db);
+    if(va == null && vb == null) return 0;
+    if(va == null) return 1;
+    if(vb == null) return -1;
+    return sortDir * (va - vb);
+  });
+
+  const tbody = document.getElementById('stock-tbody');
+  if(!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="11"><div class="overlay">No stocks match your filter.</div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map((s, i) => {
+    const d = liveData[s.s] || null;
+    const name   = (d && d.shortName) || s.n;
+    const code   = s.s.replace('.KL','');
+    const price  = d?.regularMarketPrice;
+    const chg    = d?.regularMarketChange;
+    const chgPct = d?.regularMarketChangePercent;
+    const vol    = d?.regularMarketVolume;
+    const cap    = d?.marketCap;
+    const pe     = d?.trailingPE;
+    const divY   = d?.trailingAnnualDividendYield;
+    const hi52   = d?.fiftyTwoWeekHigh;
+    const lo52   = d?.fiftyTwoWeekLow;
+
+    const cc = chgClass(chgPct);
+    const rowCls = chgPct > 0 ? 'row-up' : chgPct < 0 ? 'row-down' : '';
+    const secTag = 't-' + s.sec.toLowerCase().replace(/[^a-z]/g,'');
+
+    // 52-week position
+    let rangeHtml = '—';
+    if(price && hi52 && lo52 && hi52 > lo52) {
+      const pct = Math.max(0, Math.min(100, ((price - lo52)/(hi52 - lo52))*100));
+      rangeHtml = `<div class="range-wrap">
+        <span class="range-label">${fmtNum(lo52)}</span>
+        <div class="range-bar"><div class="range-dot" style="left:${pct.toFixed(1)}%"></div></div>
+        <span class="range-label">${fmtNum(hi52)}</span>
+      </div>`;
+    }
+
+    return `<tr class="${rowCls}">
+      <td style="text-align:center;color:var(--muted);font-size:11px">${i+1}</td>
+      <td class="cell-name">
+        <div class="sn">${name}</div>
+        <div class="sc">${code} · KL</div>
+      </td>
+      <td><span class="tag ${secTag}">${s.sec}</span></td>
+      <td class="td-r"><span class="price-val">${price ? price.toFixed(2) : '—'}</span></td>
+      <td class="td-r"><span class="chg-cell ${cc}">${chg != null && !isNaN(chg) ? sign(chg)+chg.toFixed(3) : '—'}</span></td>
+      <td class="td-r">
+        <span class="chg-cell ${cc}">${chgPct != null && !isNaN(chgPct) ? sign(chgPct)+chgPct.toFixed(2)+'%' : '—'}</span>
+      </td>
+      <td class="td-r num-cell">${fmtVol(vol)}</td>
+      <td class="td-r num-cell">${fmtCap(cap)}</td>
+      <td class="td-r num-cell">${pe ? fmtNum(pe,1) : '—'}</td>
+      <td class="td-r"><span style="color:var(--green)">${divY ? (divY*100).toFixed(2)+'%' : '—'}</span></td>
+      <td class="td-r">${rangeHtml}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('cnt-loaded').textContent = STOCKS.length + ' ('+rows.length+' shown)';
+}
+
+/* ── BREADTH ─────────────────────────────── */
+function updateBreadth() {
+  let up=0, flat=0, down=0, totalYield=0, yieldCount=0;
+  STOCKS.forEach(s => {
+    const d = liveData[s.s];
+    if(!d) return;
+    const c = d.regularMarketChangePercent;
+    if(c > 0.05) up++;
+    else if(c < -0.05) down++;
+    else flat++;
+    if(d.trailingAnnualDividendYield) {
+      totalYield += d.trailingAnnualDividendYield * 100;
+      yieldCount++;
+    }
+  });
+  const total = up + flat + down || 1;
+  document.querySelector('.breadth-seg.up').style.width   = (up/total*100).toFixed(1)+'%';
+  document.querySelector('.breadth-seg.flat').style.width = (flat/total*100).toFixed(1)+'%';
+  document.querySelector('.breadth-seg.down').style.width = (down/total*100).toFixed(1)+'%';
+  document.getElementById('cnt-up').textContent   = up;
+  document.getElementById('cnt-flat').textContent = flat;
+  document.getElementById('cnt-down').textContent = down;
+  document.getElementById('avg-yield').textContent = yieldCount ? (totalYield/yieldCount).toFixed(2)+'%' : '—';
+}
+
+/* ── REFRESH CONTROLS ───────────────────── */
+function setRefreshBtn(loading) {
+  const btn = document.getElementById('refresh-btn');
+  btn.textContent = loading ? '↻ Loading…' : '↻ Refresh';
+  btn.disabled = loading;
+}
+
+function resetCountdown() {
+  countdown = 60;
+  clearInterval(countdownTimer);
+  countdownTimer = setInterval(() => {
+    countdown--;
+    document.getElementById('countdown').textContent = countdown;
+    if(countdown <= 0) {
+      clearInterval(countdownTimer);
+      loadData();
+    }
+  }, 1000);
+}
+
+function triggerRefresh() {
+  clearInterval(countdownTimer);
+  clearInterval(refreshTimer);
+  loadData();
+}
+
+/* ── INIT ─────────────────────────────── */
+updateMarketStatus();
+setInterval(updateMarketStatus, 60000);
+renderTable(); // show all stocks immediately as placeholders
+loadData();    // then fill in live data
+
+// Set initial sort header icon
+const initTh = document.getElementById('th-changePct');
+if(initTh) { initTh.classList.add('sorted'); initTh.querySelector('.sort-icon').textContent = '▾'; }
+</script>
+</body>
+</html>

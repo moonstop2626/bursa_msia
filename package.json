@@ -1,0 +1,5 @@
+{
+  "name": "bursa-proxy",
+  "version": "1.0.0",
+  "description": "Yahoo Finance CORS proxy for Bursa Malaysia dashboard"
+}
