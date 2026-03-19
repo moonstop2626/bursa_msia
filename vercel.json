@@ -1,9 +1,3 @@
 {
-  "version": 2,
-  "name": "bursa-proxy",
-  "functions": {
-    "api/proxy.js": {
-      "runtime": "edge"
-    }
-  }
+  "version": 2
 }
