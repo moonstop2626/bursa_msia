@@ -1,38 +1,68 @@
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  if (req.method === 'OPTIONS') return res.status(200).end();
+export const config = { runtime: 'edge' };
 
-  const { symbols } = req.query;
-  if (!symbols) return res.status(400).json({ error: 'symbols param required' });
-
-  const urls = [
-    `https://query1.finance.yahoo.com/v8/finance/quote?symbols=${symbols}&formatted=false&region=MY`,
-    `https://query2.finance.yahoo.com/v8/finance/quote?symbols=${symbols}&formatted=false&region=MY`,
-  ];
-
-  const headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Referer': 'https://finance.yahoo.com/quote/' + symbols.split(',')[0],
-    'Origin': 'https://finance.yahoo.com',
-    'sec-fetch-dest': 'empty',
-    'sec-fetch-mode': 'cors',
-    'sec-fetch-site': 'same-site',
+export default async function handler(req) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Content-Type': 'application/json',
   };
 
-  for (const url of urls) {
-    try {
-      const response = await fetch(url, { headers });
-      if (!response.ok) continue;
-      const data = await response.json();
-      if (data?.quoteResponse?.result?.length > 0) {
-        return res.status(200).json(data);
-      }
-    } catch(e) { continue; }
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
-  return res.status(500).json({ error: 'All Yahoo endpoints failed' });
+  const { searchParams } = new URL(req.url);
+  const symbols = searchParams.get('symbols');
+  if (!symbols) {
+    return new Response(JSON.stringify({ error: 'symbols param required' }), { status: 400, headers: corsHeaders });
+  }
+
+  const browserHeaders = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Accept': 'application/json, text/plain, */*',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Referer': 'https://finance.yahoo.com',
+    'Origin': 'https://finance.yahoo.com',
+  };
+
+  try {
+    // Step 1 — get cookies from Yahoo Finance homepage
+    const homeRes = await fetch('https://finance.yahoo.com', { headers: browserHeaders });
+    const cookies = homeRes.headers.get('set-cookie') || '';
+
+    // Step 2 — get crumb using those cookies
+    const crumbRes = await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb', {
+      headers: { ...browserHeaders, 'Cookie': cookies }
+    });
+    const crumb = await crumbRes.text();
+
+    if (!crumb || crumb.includes('<')) {
+      return new Response(JSON.stringify({ error: 'Could not get crumb' }), { status: 500, headers: corsHeaders });
+    }
+
+    // Step 3 — fetch quote data with crumb
+    const quoteUrl = `https://query1.finance.yahoo.com/v8/finance/quote?symbols=${symbols}&crumb=${encodeURIComponent(crumb)}&formatted=false&region=MY&lang=en-US`;
+    const quoteRes = await fetch(quoteUrl, {
+      headers: { ...browserHeaders, 'Cookie': cookies }
+    });
+
+    if (!quoteRes.ok) {
+      return new Response(JSON.stringify({ error: 'Yahoo returned ' + quoteRes.status }), { status: 500, headers: corsHeaders });
+    }
+
+    const data = await quoteRes.json();
+    return new Response(JSON.stringify(data), { status: 200, headers: corsHeaders });
+
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
+  }
 }
+```
+
+**Step 2 — Commit changes** on GitHub
+
+**Step 3 — Wait for Vercel to redeploy** (~30 seconds)
+
+**Step 4 — Test in browser:**
+```
+https://YOUR-URL.vercel.app/api/proxy?symbols=1155.KL
